@@ -203,7 +203,7 @@ def create_wheel(positions, angle=0):
                 fontweight='bold', color='black', zorder=7)
                 
     # Vẽ text trắng ở giữa
-    ax.text(0, 0, "RS", ha='center', va='center', fontsize=30, 
+    ax.text(0, 0, "RSC", ha='center', va='center', fontsize=30, 
             fontweight='bold', color='white', zorder=8)
     
     # Thêm mũi tên chỉ vị trí (ở trên cùng với hiệu ứng đẹp hơn)
