@@ -119,7 +119,7 @@ if 'used_teams' not in st.session_state:
 
 available_teams = [team for team in all_teams if team not in st.session_state.used_teams]
 
-# Hàm easeInOutCirc để tạo hiệu ứng quay chân thực
+# Hàm easeInOutCirc cải tiến
 def easeInOutCirc(x):
     if x < 0.5:
         return 0.5 * (1 - math.sqrt(1 - 4 * x * x))
@@ -586,65 +586,58 @@ with st.container():
         result_container = st.empty()
         
         if st.session_state.spinning and st.session_state.available_positions:
-            # Phát âm thanh khi quay
             audio_url = "https://tiengdong.com/wp-content/uploads/Am-thanh-vong-quay-chiec-non-ky-dieu-www_tiengdong_com.mp3?_=1"
             audio_placeholder.markdown(autoplay_audio(audio_url), unsafe_allow_html=True)
             
             with st.spinner(get_text('spinning')):
-                # Hiệu ứng quay
                 progress_bar = st.progress(0)
                 
-                # Số vòng quay và thời gian quay
-                total_spins = 150  # Tăng số bước để cho hiệu ứng mượt hơn
-                spin_duration = 5  # Thời gian quay 15 giây
+                # Điều chỉnh tham số quay
+                total_spins = 10  # Tăng số khung hình
+                spin_duration = 0.2  # Thời gian quay 5 giây
                 
-                # Chọn vị trí ngẫu nhiên bằng cách xác định góc dừng
                 n = len(st.session_state.available_positions)
                 segment_angle = 360 / n
                 
-                # Chọn một vị trí ngẫu nhiên
                 random_index = random.randint(0, n - 1)
-                
-                # Tính góc dừng để mũi tên chỉ vào vị trí được chọn
                 target_angle = random_index * segment_angle + segment_angle / 2
-                target_angle += random.randint(10, 20) * 360  # Thêm nhiều vòng quay ngẫu nhiên
+                target_angle += random.randint(15, 25) * 360  # Thêm nhiều vòng quay hơn
                 
-                # Tạo danh sách các góc quay
                 angles = []
                 current_angle = st.session_state.wheel_angle
                 
-                # Tạo hiệu ứng quay với tốc độ thay đổi chân thực
+                # Tạo hiệu ứng quay cải tiến
                 for i in range(total_spins):
-                    # Tính tỉ lệ tiến trình
                     progress = i / total_spins
-                    
-                    # Sử dụng hàm easeInOutCirc để tạo hiệu ứng quay chân thực
-                    # - Ban đầu quay nhanh dần
-                    # - Sau đó quay chậm dần khi sắp dừng
                     t = easeInOutCirc(progress)
                     
-                    # Tăng góc quay dựa trên tiến trình
-                    if progress < 0.2:  # 20% đầu: tăng tốc
-                        current_angle += (target_angle - current_angle) * 0.05 * (1 + progress * 10)
-                    elif progress < 0.8:  # 60% giữa: tốc độ ổn định
-                        current_angle += (target_angle - current_angle) * 0.05 * 3
-                    else:  # 20% cuối: giảm tốc
-                        current_angle += (target_angle - current_angle) * 0.05 * (1 + (1 - progress) * 10)
+                    # Điều chỉnh các giai đoạn quay
+                    if progress < 0.25:
+                        current_angle += (target_angle - current_angle) * 0.04 * (1 + progress * 8)
+                    elif progress < 0.7:
+                        current_angle += (target_angle - current_angle) * 0.04 * 2.5
+                    else:
+                        current_angle += (target_angle - current_angle) * 0.04 * (1 + (1 - progress) * 6)
+                    
+                    # Thêm nhiễu ngẫu nhiên
+                    if i < total_spins * 0.9:
+                        current_angle += random.uniform(-0.5, 0.5)
                     
                     angles.append(current_angle % 360)
+                
+                # Thêm hiệu ứng nảy khi dừng
+                final_angle = angles[-1]
+                for j in range(3):
+                    angles.append((final_angle + (1 if j % 2 else -1) * (j + 1) * 0.3) % 360)
+                angles.append(final_angle % 360)
                 
                 # Thực hiện quay
                 labels_pos = None
                 for i, angle in enumerate(angles):
-                    # Vẽ vòng quay với góc hiện tại
                     fig, labels_pos = create_wheel(st.session_state.available_positions, angle)
                     wheel_container.pyplot(fig)
-                    
-                    # Cập nhật thanh tiến trình
-                    progress_bar.progress(int((i + 1) / total_spins * 100))
-                    
-                    # Tạm dừng để tạo hiệu ứng
-                    time.sleep(spin_duration / total_spins)
+                    progress_bar.progress(int((i + 1) / len(angles) * 100))
+                    time.sleep(spin_duration / len(angles))
                 
                 # Lưu góc quay cuối cùng
                 st.session_state.wheel_angle = angles[-1] % 360
