@@ -4,9 +4,10 @@ import time
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge, Circle
+from matplotlib.patches import Wedge, Circle, Polygon
 from matplotlib.figure import Figure
 import base64
+import math
 
 # Thiết lập trang / Page setup
 st.set_page_config(page_title="Bốc Thăm Bảng Đấu / Draw Tournament Groups", layout="wide")
@@ -19,7 +20,7 @@ if 'language' not in st.session_state:
 translations = {
     'title': {
         'vi': "🏆 BỐC THĂM BẢNG THI ĐẤU GIẢI BÓNG ĐÁ TRUYỀN THỐNG ROCHDALE SPEARS 🏆",
-        'en': "🏆 OFFICIAL GROUP STAGE DRAW – ROCHDALE SPEARS TRADITIONAL FOOTBALL TOURNAMENT 🏆"
+        'en': "🏆 OFFICIAL GROUP STAGE DRAW -- ROCHDALE SPEARS TRADITIONAL FOOTBALL TOURNAMENT 🏆"
     },
     'draw_header': {
         'vi': "Bốc thăm bảng thi đấu",
@@ -118,16 +119,28 @@ if 'used_teams' not in st.session_state:
 
 available_teams = [team for team in all_teams if team not in st.session_state.used_teams]
 
-# Hàm vẽ vòng quay may mắn với góc quay
+# Hàm easeInOutCirc để tạo hiệu ứng quay chân thực
+def easeInOutCirc(x):
+    if x < 0.5:
+        return 0.5 * (1 - math.sqrt(1 - 4 * x * x))
+    else:
+        return 0.5 * (math.sqrt(-((2 * x - 3) * (2 * x - 1))) + 1)
+
+# Hàm vẽ vòng quay may mắn với góc quay và hiệu ứng 3D - không sử dụng patheffects
 def create_wheel(positions, angle=0):
-    fig = Figure(figsize=(8, 8))
+    fig = Figure(figsize=(10, 10), dpi=100)
     ax = fig.add_subplot(111)
     
     # Số lượng phần tử trên vòng quay
     n = len(positions)
     
-    # Màu sắc cho các phần tử
-    colors = plt.cm.rainbow(np.linspace(0, 1, n))
+    # Tạo gradient màu hơi sáng để hiển thị đẹp
+    colors = []
+    base_colors = ['#FF5252', '#FF7752', '#FFCA52', '#FFE552', '#B4FF52', '#52FF8F', '#52FFDF', '#52BFFF', '#5275FF', '#8A52FF', '#D452FF', '#FF52C9']
+    
+    for i in range(n):
+        color_idx = i % len(base_colors)
+        colors.append(base_colors[color_idx])
     
     # Vẽ các phần tử trên vòng quay
     theta1 = angle  # Bắt đầu từ góc quay hiện tại
@@ -136,16 +149,39 @@ def create_wheel(positions, angle=0):
     wedges = []
     labels_pos = []
     
+    # Vẽ hình nền (đổ bóng)
+    shadow_circle = Circle((0.02, -0.02), 0.95, fc='#00000022', zorder=0)
+    ax.add_patch(shadow_circle)
+    
+    # Vẽ viền ngoài vòng quay
+    outer_circle = Circle((0, 0), 0.95, fc='none', ec='#333333', lw=2, zorder=1)
+    ax.add_patch(outer_circle)
+    
     for i in range(n):
-        wedge = Wedge((0, 0), 0.9, theta1, theta1 + theta2, fc=colors[i])
+        # Thêm hiệu ứng 3D với độ sáng khác nhau cho các phần
+        base_color = colors[i]
+        
+        # Tạo wedge chính
+        wedge = Wedge((0, 0), 0.92, theta1, theta1 + theta2, fc=base_color, ec='white', lw=1, zorder=2)
         ax.add_patch(wedge)
         wedges.append(wedge)
         
         # Thêm nhãn
         mid_angle = np.radians((theta1 + theta1 + theta2) / 2)
-        text_x = 0.5 * np.cos(mid_angle)
-        text_y = 0.5 * np.sin(mid_angle)
-        ax.text(text_x, text_y, positions[i], ha='center', va='center', fontsize=12, fontweight='bold')
+        text_radius = 0.6  # Đặt nhãn gần tâm hơn một chút để dễ đọc
+        text_x = text_radius * np.cos(mid_angle)
+        text_y = text_radius * np.sin(mid_angle)
+        
+        # Thay thế patheffects bằng cách vẽ text hai lần - đầu tiên là đường viền đen, sau đó là text trắng
+        # Vẽ đường viền đen
+        for dx, dy in [(-0.005, 0), (0.005, 0), (0, -0.005), (0, 0.005), 
+                       (-0.005, -0.005), (-0.005, 0.005), (0.005, -0.005), (0.005, 0.005)]:
+            ax.text(text_x + dx, text_y + dy, positions[i], ha='center', va='center', 
+                    fontsize=14, fontweight='bold', color='black')
+        
+        # Vẽ text chính màu trắng
+        ax.text(text_x, text_y, positions[i], ha='center', va='center', 
+                fontsize=14, fontweight='bold', color='white')
         
         # Lưu vị trí của nhãn để xác định kết quả
         labels_pos.append((mid_angle, positions[i]))
@@ -153,16 +189,49 @@ def create_wheel(positions, angle=0):
         theta1 += theta2
     
     # Thêm vòng tròn ở giữa
-    center_circle = Circle((0, 0), 0.2, fc='white')
+    inner_circle_bg = Circle((0, 0), 0.27, fc='#333333', ec='#555555', lw=4, zorder=5)
+    ax.add_patch(inner_circle_bg)
+    
+    center_circle = Circle((0, 0), 0.25, fc='#444444', ec='#666666', lw=2, zorder=6)
     ax.add_patch(center_circle)
     
-    # Thêm mũi tên chỉ vị trí (cố định ở vị trí trên cùng)
-    ax.arrow(0, 0, 0, 1, head_width=0.1, head_length=0.1, fc='red', ec='red')
+    # Logo hoặc văn bản ở giữa - sử dụng kỹ thuật tương tự để tạo hiệu ứng đường viền
+    # Vẽ đường viền đen
+    for dx, dy in [(-0.01, 0), (0.01, 0), (0, -0.01), (0, 0.01), 
+                 (-0.01, -0.01), (-0.01, 0.01), (0.01, -0.01), (0.01, 0.01)]:
+        ax.text(0 + dx, 0 + dy, "RS", ha='center', va='center', fontsize=30, 
+                fontweight='bold', color='black', zorder=7)
+                
+    # Vẽ text trắng ở giữa
+    ax.text(0, 0, "RS", ha='center', va='center', fontsize=30, 
+            fontweight='bold', color='white', zorder=8)
+    
+    # Thêm mũi tên chỉ vị trí (ở trên cùng với hiệu ứng đẹp hơn)
+    arrow_height = 0.15
+    arrow_width = 0.08
+    arrow_x = 0
+    arrow_y = 0.92
+    
+    # Tạo hình mũi tên
+    arrow_shape = np.array([[arrow_x, arrow_y], 
+                           [arrow_x - arrow_width/2, arrow_y + arrow_height/2], 
+                           [arrow_x, arrow_y - arrow_height/2],
+                           [arrow_x + arrow_width/2, arrow_y + arrow_height/2]])
+    
+    arrow = Polygon(arrow_shape, fc='red', ec='darkred', lw=1, zorder=10)
+    ax.add_patch(arrow)
+    
+    # Thêm viền ngoài để thêm hiệu ứng đổ bóng
+    highlight_circle = Circle((0, 0), 0.97, fc='none', ec='#FFFFFF55', lw=3, zorder=1)
+    ax.add_patch(highlight_circle)
     
     ax.set_xlim(-1, 1)
     ax.set_ylim(-1, 1)
     ax.set_aspect('equal')
     ax.axis('off')
+    
+    # Đặt màu nền trong suốt
+    fig.patch.set_alpha(0.0)
     
     return fig, labels_pos
 
@@ -172,12 +241,9 @@ def get_selected_position(labels_pos, angle):
     angle_rad = np.radians(angle)
     
     # Điều chỉnh góc để phù hợp với hệ tọa độ của matplotlib
-    # Trong matplotlib, 0 độ là bên phải, 90 độ là trên cùng
-    # Chúng ta cần điều chỉnh để 0 độ là trên cùng
     adjusted_angle = (angle_rad - np.pi/2) % (2*np.pi)
     
     # Tìm vị trí gần nhất với mũi tên (trên cùng)
-    # Mũi tên ở vị trí 90 độ (π/2 radian)
     arrow_angle = 0  # Vì đã điều chỉnh góc
     
     # Tìm vị trí có góc gần với mũi tên nhất
@@ -213,10 +279,20 @@ def autoplay_audio(url):
         </audio>
         <script>
             var audio = document.getElementById("wheelAudio");
-            audio.volume = 0.5;  // Đặt âm lượng ở mức 50%
+            audio.volume = 0.5;
         </script>
     """
     return audio_html
+
+# Hàm phát âm thanh kết quả
+def play_result_audio():
+    result_html = f"""
+        <audio id="resultAudio" autoplay>
+            <source src="https://www.soundjay.com/buttons/sounds/button-09.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    """
+    return result_html
 
 # Hàm dừng âm thanh
 def stop_audio():
@@ -231,62 +307,205 @@ def stop_audio():
     """
     return stop_html
 
-# CSS để tạo bảng đẹp mắt hơn
+# CSS để tạo giao diện đẹp mắt
 css = """
 <style>
+    /* Thiết lập toàn trang */
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
+
+    .main {
+        background: linear-gradient(135deg, #f0f2f5, #e6e9ef);
+        font-family: 'Montserrat', sans-serif;
+    }
+    
+    h1, h2, h3 {
+        color: #1a3a5f;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 700;
+    }
+    
+    /* Khu vực bốc thăm */
+    .draw-container {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        padding: 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .draw-container:hover {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+        transform: translateY(-2px);
+    }
+    
+    /* Vòng quay */
+    .wheel-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        margin: 20px auto;
+    }
+    
+    /* Nút bốc thăm */
+    .stButton > button {
+        background: linear-gradient(135deg, #064990, #0a5dbd);
+        color: white;
+        font-weight: bold;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(10, 93, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #053c7c, #084da0);
+        box-shadow: 0 6px 16px rgba(10, 93, 189, 0.4);
+        transform: translateY(-2px);
+    }
+    
+    /* Nút reset */
+    .stButton.reset > button {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+    }
+    
+    .stButton.reset > button:hover {
+        background: linear-gradient(135deg, #c0392b, #a93226);
+        box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+    }
+    
+    /* Bảng kết quả */
     .styled-table {
         width: 100%;
         border-collapse: collapse;
         margin: 25px 0;
         font-size: 18px;
-        font-family: sans-serif;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+        font-family: 'Montserrat', sans-serif;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.15);
+        border-radius: 10px;
+        overflow: hidden;
     }
+    
     .styled-table thead tr {
-        background-color: #009879;
+        background: linear-gradient(135deg, #1a3a5f, #2980b9);
         color: white;
         text-align: center;
     }
+    
     .styled-table th,
     .styled-table td {
-        padding: 12px 15px;
+        padding: 15px;
         text-align: center;
-        border: 1px solid #dddddd;
+        border: none;
     }
+    
     .styled-table tbody tr {
         border-bottom: 1px solid #dddddd;
+        transition: all 0.3s ease;
     }
+    
     .styled-table tbody tr:nth-of-type(even) {
-        background-color: #f3f3f3;
+        background-color: #f8f9fa;
     }
+    
+    .styled-table tbody tr:hover {
+        background-color: #f1f1f1;
+        transform: scale(1.01);
+    }
+    
     .styled-table tbody tr:last-of-type {
-        border-bottom: 2px solid #009879;
+        border-bottom: 2px solid #1a3a5f;
     }
+    
     .empty-cell {
-        color: #999;
+        color: #bbb;
         font-style: italic;
     }
+    
     .header-cell {
         font-weight: bold;
-        background-color: #f0f0f0;
+        background-color: #e9ecef;
     }
+    
+    /* Language toggle */
     .language-toggle {
         display: flex;
         justify-content: flex-end;
         margin-bottom: 10px;
     }
-    .bilingual-text {
-        display: flex;
-        flex-direction: column;
-    }
-    .primary-text {
-        font-size: 1.2em;
+    
+    /* Điểm nhấn và hiệu ứng */
+    .highlight-result {
+        background: linear-gradient(135deg, #2ecc71, #27ae60);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
         font-weight: bold;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+        animation: pulse 1.5s infinite;
     }
-    .secondary-text {
-        font-size: 0.9em;
-        color: #666;
-        font-style: italic;
+    
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.6);
+        }
+        70% {
+            box-shadow: 0 0 0 15px rgba(46, 204, 113, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+        }
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div {
+        background-color: #2980b9;
+    }
+    
+    /* Select box styling */
+    .stSelectbox [data-baseweb="select"] {
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+    }
+    
+    .stSelectbox [data-baseweb="select"]:hover {
+        border-color: #2980b9;
+    }
+    
+    /* Logo và tiêu đề */
+    .title-container {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .title-container h1 {
+        color: #1a3a5f;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+        animation: title-glow 3s infinite alternate;
+    }
+    
+    @keyframes title-glow {
+        from {
+            text-shadow: 1px 1px 5px rgba(26, 58, 95, 0.2);
+        }
+        to {
+            text-shadow: 1px 1px 15px rgba(26, 58, 95, 0.6);
+        }
+    }
+    
+    /* Khi đã bốc thăm xong */
+    .completed-message {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
     }
 </style>
 """
@@ -296,6 +515,7 @@ st.markdown(css, unsafe_allow_html=True)
 
 # Placeholder cho audio
 audio_placeholder = st.empty()
+result_audio_placeholder = st.empty()
 
 # Chọn ngôn ngữ / Language selector
 lang_col1, lang_col2 = st.columns([6, 1])
@@ -310,11 +530,12 @@ with lang_col2:
         st.session_state.language = selected_language
         st.rerun()
 
-# Tiêu đề ứng dụng / Application title
-st.title(get_text('title'))
+# Tiêu đề ứng dụng với lớp CSS
+st.markdown(f'<div class="title-container"><h1>{get_text("title")}</h1></div>', unsafe_allow_html=True)
 
 # Container 1: Phần droplist và button (trên)
 with st.container():
+    st.markdown('<div class="draw-container">', unsafe_allow_html=True)
     st.header(get_text('draw_header'))
     
     # Hiển thị số đội còn lại cần bốc thăm
@@ -328,7 +549,7 @@ with st.container():
             # Dropdown để chọn đội
             selected_team = st.selectbox(get_text('select_team'), available_teams)
         else:
-            st.success(get_text('all_teams_drawn'))
+            st.markdown(f'<div class="completed-message">{get_text("all_teams_drawn")}</div>', unsafe_allow_html=True)
             selected_team = None
     
     with control_col2:
@@ -341,19 +562,25 @@ with st.container():
             
     with control_col3:
         # Nút reset
-        if st.button(get_text('reset_button'), use_container_width=True):
+        if st.button(get_text('reset_button'), use_container_width=True, key="reset_button"):
             for key in list(st.session_state.keys()):
                 if key != 'language':  # Giữ nguyên ngôn ngữ đã chọn
                     del st.session_state[key]
             st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Container 2: Vòng xoay và kết quả bốc thăm (dưới)
 with st.container():
+    st.markdown('<div class="draw-container">', unsafe_allow_html=True)
+    
     # Chia cột cho vòng xoay và kết quả
     wheel_col, results_col = st.columns([2, 5])
     
     # Cột 1: Vòng xoay
     with wheel_col:
+        st.markdown('<div class="wheel-container">', unsafe_allow_html=True)
+        
         # Hiển thị vòng quay may mắn
         wheel_container = st.empty()
         result_container = st.empty()
@@ -368,11 +595,10 @@ with st.container():
                 progress_bar = st.progress(0)
                 
                 # Số vòng quay và thời gian quay
-                total_spins = 20  # Tổng số bước quay
-                spin_duration = 2  # Thời gian quay (giây)
+                total_spins = 60  # Tăng số bước để cho hiệu ứng mượt hơn
+                spin_duration = 15  # Thời gian quay 15 giây
                 
                 # Chọn vị trí ngẫu nhiên bằng cách xác định góc dừng
-                # Tính góc cho mỗi vị trí
                 n = len(st.session_state.available_positions)
                 segment_angle = 360 / n
                 
@@ -380,24 +606,31 @@ with st.container():
                 random_index = random.randint(0, n - 1)
                 
                 # Tính góc dừng để mũi tên chỉ vào vị trí được chọn
-                # Góc dừng = góc bắt đầu của phần tử + một nửa góc của phần tử + số vòng quay ngẫu nhiên
                 target_angle = random_index * segment_angle + segment_angle / 2
-                target_angle += random.randint(5, 10) * 360  # Thêm một số vòng quay ngẫu nhiên
+                target_angle += random.randint(10, 20) * 360  # Thêm nhiều vòng quay ngẫu nhiên
                 
                 # Tạo danh sách các góc quay
                 angles = []
                 current_angle = st.session_state.wheel_angle
                 
-                # Tạo hiệu ứng quay với tốc độ giảm dần
+                # Tạo hiệu ứng quay với tốc độ thay đổi chân thực
                 for i in range(total_spins):
-                    # Tính góc quay cho mỗi bước
+                    # Tính tỉ lệ tiến trình
                     progress = i / total_spins
                     
-                    # Sử dụng hàm easeOutCubic để tạo hiệu ứng chậm dần
-                    t = 1 - (1 - progress) ** 3
+                    # Sử dụng hàm easeInOutCirc để tạo hiệu ứng quay chân thực
+                    # - Ban đầu quay nhanh dần
+                    # - Sau đó quay chậm dần khi sắp dừng
+                    t = easeInOutCirc(progress)
                     
-                    # Góc quay hiện tại
-                    current_angle = current_angle + (target_angle - current_angle) * t
+                    # Tăng góc quay dựa trên tiến trình
+                    if progress < 0.2:  # 20% đầu: tăng tốc
+                        current_angle += (target_angle - current_angle) * 0.05 * (1 + progress * 10)
+                    elif progress < 0.8:  # 60% giữa: tốc độ ổn định
+                        current_angle += (target_angle - current_angle) * 0.05 * 3
+                    else:  # 20% cuối: giảm tốc
+                        current_angle += (target_angle - current_angle) * 0.05 * (1 + (1 - progress) * 10)
+                    
                     angles.append(current_angle % 360)
                 
                 # Thực hiện quay
@@ -426,17 +659,22 @@ with st.container():
                 # Cập nhật bảng kết quả
                 update_result_table(selected_position, st.session_state.current_team)
                 
-                # Hiển thị kết quả
-                result_container.success(get_text('result', team=st.session_state.current_team, position=selected_position))
-                
-                # Kết thúc quay và dừng âm thanh
+                # Dừng âm thanh quay và phát âm thanh kết quả
                 audio_placeholder.markdown(stop_audio(), unsafe_allow_html=True)
+                result_audio_placeholder.markdown(play_result_audio(), unsafe_allow_html=True)
+                
+                # Hiển thị kết quả với hiệu ứng
+                result_html = f'<div class="highlight-result">{get_text("result", team=st.session_state.current_team, position=selected_position)}</div>'
+                result_container.markdown(result_html, unsafe_allow_html=True)
+                
                 st.session_state.spinning = False
         else:
             # Hiển thị vòng quay tĩnh
             if st.session_state.available_positions:
                 fig, _ = create_wheel(st.session_state.available_positions, st.session_state.wheel_angle)
                 wheel_container.pyplot(fig)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Cột 2: Kết quả bốc thăm
     with results_col:
@@ -485,3 +723,5 @@ with st.container():
         
         # Hiển thị bảng
         st.markdown(table_html, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
