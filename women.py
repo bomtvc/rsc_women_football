@@ -595,8 +595,8 @@ with st.container():
                 progress_bar = st.progress(0)
                 
                 # Số vòng quay và thời gian quay
-                total_spins = 60  # Tăng số bước để cho hiệu ứng mượt hơn
-                spin_duration = 5  # Thời gian quay 15 giây
+                total_spins = 100  # Tăng số bước để cho hiệu ứng mượt hơn
+                spin_duration = 3  # Thời gian quay 15 giây
                 
                 # Chọn vị trí ngẫu nhiên bằng cách xác định góc dừng
                 n = len(st.session_state.available_positions)
