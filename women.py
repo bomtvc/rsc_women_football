@@ -199,7 +199,7 @@ def create_wheel(positions, angle=0):
     # Vẽ đường viền đen
     for dx, dy in [(-0.01, 0), (0.01, 0), (0, -0.01), (0, 0.01), 
                  (-0.01, -0.01), (-0.01, 0.01), (0.01, -0.01), (0.01, 0.01)]:
-        ax.text(0 + dx, 0 + dy, "RS", ha='center', va='center', fontsize=30, 
+        ax.text(0 + dx, 0 + dy, "RSC", ha='center', va='center', fontsize=30, 
                 fontweight='bold', color='black', zorder=7)
                 
     # Vẽ text trắng ở giữa
